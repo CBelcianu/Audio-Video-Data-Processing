@@ -3,6 +3,7 @@
 #include <cmath>
 #include <vector>
 #include <string>
+#include <sstream>
 
 using namespace std;
 
@@ -44,18 +45,12 @@ void loadMatrices(vector<vector<float>> &Y, vector<vector<float>> &U, vector<vec
     
     int h = 0;
     int w = 0;
-    bool isSpace = false;
-    for(char i:line){
-        if(i==' '){
-            isSpace = true;
-        }
-        else if(!isSpace){
-            w = w*10 + (i - '0');
-        }
-        else{
-            h = h*10 + (i - '0');
-        }
-    }
+    istringstream ss(line);
+    string word;
+    ss>>word;
+    w = stoi(word);
+    ss>>word;
+    h = stoi(word);
 
     getline(in, line);
     string p1, p2, p3;
@@ -102,7 +97,7 @@ vector<Block> divideMatrixBy8(vector<vector<float>> Matrix){
     return blocks;
 }
 
-Block comprime(Block b){
+Block compress(Block b){
     Block c{4};
     for(int i=0; i<b.getN(); i+=2){
         for(int j=0; j<b.getN(); j+=2){
@@ -139,34 +134,34 @@ void prettyMatrixPrint(vector<vector<float>> Matrix){
     
 }
 
-void encoder(vector<vector<float>> Y,vector<vector<float>> U,vector<vector<float>> V,vector<Block> &YC,vector<Block> &UC,vector<Block> &VC){
-    YC=divideMatrixBy8(Y);
+void encoder(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<float>> V, vector<Block> &YBlocks, vector<Block> &UBlocks, vector<Block> &VBlocks){
+    YBlocks=divideMatrixBy8(Y);
     vector<Block> aux=divideMatrixBy8(U);
 
     for(Block b:aux){
-        UC.push_back(comprime(b));
+        UBlocks.push_back(compress(b));
     } 
 
     aux=divideMatrixBy8(V);
 
     for(Block b:aux){
-        VC.push_back(comprime(b));
+        VBlocks.push_back(compress(b));
     }
 
 }
 
 
-Block decomprime(Block b){
+Block decompress(Block b){
     Block c{8};
     for(int i=0; i<8; i++){
         for(int j=0; j<8; j++){
-            c.set(i,j,b.get(ceil(i/2),ceil(j/2)));
+            c.set(i,j,b.get(i/2, j/2));
         }
     }
     return c;
 }
 
-vector<vector<float>> buildMatrixBy8(vector<Block> blocks,int width,int height){
+vector<vector<float>> undivideMatrixBy8(vector<Block> blocks, int width, int height){
     vector<vector<float>> rez;
     
     for(int i=0; i<height; i++){
@@ -195,7 +190,8 @@ vector<vector<float>> buildMatrixBy8(vector<Block> blocks,int width,int height){
 
 
 void writePPM(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<float>> V){
-    ofstream out("newton.ppm");
+    cout<<"Wrintng the PPM...."<<endl;
+    ofstream out("result.ppm");
 
     out<<"P3";
     out<<endl;
@@ -232,40 +228,39 @@ void writePPM(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<fl
 }
 
 
-void decoder(vector<Block> Y,vector<Block> U,vector<Block> V,int width,int height){
-    vector<Block> UD,VD;
+void decoder(vector<Block> Y, vector<Block> U, vector<Block> V, int width, int height){
+    vector<Block> UDecompressed, VDecompressed;
     for(Block b:U){
-        UD.push_back(decomprime(b));
+        UDecompressed.push_back(decompress(b));
     }
 
 
     for(Block b:V){
-        VD.push_back(decomprime(b));
+        VDecompressed.push_back(decompress(b));
     }
 
-    vector<vector<float>> YM, UM, VM;
+    vector<vector<float>> YNoBlocks, UNoBlocks, VNoBlocks;
 
-    YM=buildMatrixBy8(Y,width,height);
-    UM=buildMatrixBy8(UD,width,height);
-    VM=buildMatrixBy8(VD,width,height);
+    YNoBlocks=undivideMatrixBy8(Y,width,height);
+    UNoBlocks=undivideMatrixBy8(UDecompressed,width,height);
+    VNoBlocks=undivideMatrixBy8(VDecompressed,width,height);
 
-    writePPM(YM,UM,VM);
+    writePPM(YNoBlocks, UNoBlocks, VNoBlocks);
     
 }
 
 
 int main(){
     vector<vector<float>> Y, U, V;
-    vector<Block> YC,UC,VC;
+    vector<Block> YBlocks, UBlocks, VBlocks;
 
     loadMatrices(Y, U, V);
     
-    cout<<"Encode...."<<endl;
-    encoder(Y,U,V,YC,UC,VC);
-    cout<<"Decode...."<<endl;
-    decoder(YC,UC,VC,Y[0].size(),Y.size());
+    cout<<"Encoding...."<<endl;
+    encoder(Y, U, V, YBlocks, UBlocks, VBlocks);
+    cout<<"Decoding...."<<endl;
+    decoder(YBlocks ,UBlocks ,VBlocks ,Y[0].size(), Y.size());
+    cout<<"Done :)"<<endl;
 
-
-
-    return 1;
+    return 0;
 }
