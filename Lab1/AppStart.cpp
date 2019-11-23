@@ -49,6 +49,16 @@ void substract128(Block &Yblock, Block &Ublock, Block &Vblock){
     }
 }
 
+void add128(Block &Yblock, Block &Ublock, Block &Vblock){
+    for(int i=0; i<8; i++){
+        for(int j=0; j<8; j++){
+            Yblock.set(i, j, Yblock.get(i, j) + 128);
+            Ublock.set(i, j, Ublock.get(i, j) + 128);
+            Vblock.set(i, j, Vblock.get(i, j) + 128);
+        }
+    }
+}
+
 double alpha(int val){
     if( val>0 ){
         return 1;
@@ -58,17 +68,33 @@ double alpha(int val){
     }
 }
 
+
 double product(double value, int x, int y, int u , int v){
-    double cosineU = cos((2*x+1)*u*PI)/16.00;
-    double cosineV = cos((2*y+1)*v*PI)/16.00;
+    double cosineU = cos(((2.00*x+1)*u*PI)/16.00);
+    double cosineV = cos(((2.00*y+1)*v*PI)/16.00);
 
     return value*cosineU*cosineV;
+}
+
+double iProduct(double value, int x, int y, int u , int v){
+    double cosineU = cos(((2.00*x+1)*u*PI)/16.00);
+    double cosineV = cos(((2.00*y+1)*v*PI)/16.00);
+
+    return value*cosineU*cosineV*alpha(u)*alpha(v);
 }
 
 double innerSum(Block block, int x, int u, int v){
     double sum = 0.00;
     for(int y=0; y<8; y++){
         sum += product(block.get(x,y), x, y, u, v);
+    }
+    return sum;
+}
+
+double iInnerSum(Block block, int x, int y, int u){
+    double sum = 0.00;
+    for(int v=0; v<8; v++){
+        sum += iProduct(block.get(u,v), x, y, u, v);
     }
     return sum;
 }
@@ -81,14 +107,33 @@ double outerSum(Block block, int u, int v){
     return sum;
 }
 
+double iOuterSum(Block block, int x, int y){
+    double sum = 0.00;
+    for(int u=0; u<8; u++){
+        sum += iInnerSum(block, x, y, u);
+    }
+    return sum;
+}
+
 void forwardDCT(Block &Yblock, Block &Ublock, Block &Vblock){
     double constant = 1.00/4.00;
 
-    for(int i=0; i<8; i++){
-        for(int j=0; j<8; j++){
-            Yblock.set(i, j, constant*alpha(i)*alpha(j)*outerSum(Yblock, i, j));
-            Ublock.set(i, j, constant*alpha(i)*alpha(j)*outerSum(Ublock, i, j));
-            Vblock.set(i, j, constant*alpha(i)*alpha(j)*outerSum(Vblock, i, j));
+    for(int u=0; u<8; u++){
+        for(int v=0; v<8; v++){
+            Yblock.set(u, v, constant*alpha(u)*alpha(v)*outerSum(Yblock, u, v));
+            Ublock.set(u, v, constant*alpha(u)*alpha(v)*outerSum(Ublock, u, v));
+            Vblock.set(u, v, constant*alpha(u)*alpha(v)*outerSum(Vblock, u, v));
+        }
+    }
+}
+
+void inversedDCT(Block &Yblock, Block &Ublock, Block &Vblock){
+    double constant=1.00/4.00;
+    for(int x=0; x<8; x++){
+        for(int y=0; y<8; y++){
+            Yblock.set(x, y, constant*iOuterSum(Yblock, x, y));
+            Ublock.set(x, y, constant*iOuterSum(Ublock, x, y));
+            Vblock.set(x, y, constant*iOuterSum(Vblock, x, y));
         }
     }
 }
@@ -107,9 +152,16 @@ void quantization(Block &Yblock, Block &Ublock, Block &Vblock){
 
     for(int i=0; i<8; i++){
         for(int j=0; j<8; j++){
-            double auxY = Yblock.get(i, j)/(Q[i][j]*1.00);
-            double auxU = Ublock.get(i, j)/(Q[i][j]*1.00);
-            double auxV = Vblock.get(i, j)/(Q[i][j]*1.00);
+            double auxY = Yblock.get(i, j)/Q[i][j];
+            double auxU = Ublock.get(i, j)/Q[i][j];
+            double auxV = Vblock.get(i, j)/Q[i][j];
+
+            Yblock.set(i, j, (int)auxY);
+        
+            Ublock.set(i, j, (int)auxU);
+            
+            Vblock.set(i, j, (int)auxV);
+           /*
             if(auxY>0){
                 Yblock.set(i, j, (int)floor(auxY));
             }
@@ -128,6 +180,35 @@ void quantization(Block &Yblock, Block &Ublock, Block &Vblock){
             else{
                 Vblock.set(i, j, (int)ceil(auxV));
             }
+            */
+        }
+    }
+}
+
+void dequantization(Block &Yblock, Block &Ublock, Block &Vblock){
+    double Q[8][8] = {
+            {6, 4, 4, 6, 10, 16, 20, 24},
+            {5, 5, 6, 8, 10, 23, 24, 22},
+            {6, 5, 6, 10, 16, 23, 28, 22},
+            {6, 7, 9, 12, 20, 35, 32, 25},
+            {7, 9, 15, 22, 27, 44, 41, 31},
+            {10, 14, 22, 26, 32, 42, 45, 37},
+            {20, 26, 31, 35, 41, 48, 48, 40},
+            {29, 37, 38, 39, 45, 40, 41, 40}
+    };
+
+    for(int i=0; i<8; i++){
+        for(int j=0; j<8; j++){
+            double auxY = Yblock.get(i, j)*Q[i][j];
+            double auxU = Ublock.get(i, j)*Q[i][j];
+            double auxV = Vblock.get(i, j)*Q[i][j];
+            
+            Yblock.set(i, j, (int)auxY);
+        
+            Ublock.set(i, j, (int)auxU);
+            
+            Vblock.set(i, j, (int)auxV);
+            
         }
     }
 }
@@ -341,6 +422,24 @@ void writePPM(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<fl
 
 
 void decoder(vector<Block> Y, vector<Block> U, vector<Block> V, int width, int height){
+    
+    for(int i=0; i<Y.size(); i++){
+        dequantization(Y[i],U[i],V[i]);
+    }
+
+    for(int i=0; i<Y.size(); i++){
+        inversedDCT(Y[i],U[i],V[i]);
+    }
+
+    for(int i=0; i<Y.size(); i++){
+        add128(Y[i],U[i],V[i]);
+    }
+
+    for(int i=0; i<U.size(); i++){
+        U[i]=compress(U[i]);
+        V[i]=compress(V[i]);
+    }
+    
     vector<Block> UDecompressed, VDecompressed;
     for(Block b:U){
         UDecompressed.push_back(decompress(b));
@@ -370,24 +469,9 @@ int main(){
     
     cout<<"Encoding...."<<endl;
     encoder(Y, U, V, YBlocks, UBlocks, VBlocks);
-
-    for(int i=0; i<8; i-=-1){
-        for(int j=0; j<8; j-=-1){
-            cout<<Y[8+i][8+j]<<' ';
-        }
-        cout<<endl;
-    }
-
-    for(int i=0; i<8; i-=-1){
-        for(int j=0; j<8; j-=-1){
-            cout<<YBlocks[1].get(i,j)<<' ';
-        }
-        cout<<endl;
-    }
-    
-    //cout<<"Decoding...."<<endl;
-    //decoder(YBlocks ,UBlocks ,VBlocks ,Y[0].size(), Y.size());
-    //cout<<"Done :)"<<endl;
+    cout<<"Decoding...."<<endl;
+    decoder(YBlocks ,UBlocks ,VBlocks ,Y[0].size(), Y.size());
+    cout<<"Done :)"<<endl;
 
 
     return 0;
