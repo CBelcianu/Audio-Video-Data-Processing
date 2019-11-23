@@ -3,8 +3,12 @@
 #include <cmath>
 #include <vector>
 #include <string>
+#include <sstream>
+#include <cmath>
 
 using namespace std;
+
+#define PI 3.14159265358979323846
 
 class Block{
     private:
@@ -35,6 +39,99 @@ class Block{
         }
 };
 
+void substract128(Block &Yblock, Block &Ublock, Block &Vblock){
+    for(int i=0; i<8; i++){
+        for(int j=0; j<8; j++){
+            Yblock.set(i, j, Yblock.get(i, j) - 128);
+            Ublock.set(i, j, Ublock.get(i, j) - 128);
+            Vblock.set(i, j, Vblock.get(i, j) - 128);
+        }
+    }
+}
+
+double alpha(int val){
+    if( val>0 ){
+        return 1;
+    }
+    else{
+        return 1/sqrt(2);
+    }
+}
+
+double product(double value, int x, int y, int u , int v){
+    double cosineU = cos((2*x+1)*u*PI)/16.00;
+    double cosineV = cos((2*y+1)*v*PI)/16.00;
+
+    return value*cosineU*cosineV;
+}
+
+double innerSum(Block block, int x, int u, int v){
+    double sum = 0.00;
+    for(int y=0; y<8; y++){
+        sum += product(block.get(x,y), x, y, u, v);
+    }
+    return sum;
+}
+
+double outerSum(Block block, int u, int v){
+    double sum = 0.00;
+    for(int x=0; x<8; x++){
+        sum += innerSum(block, x, u, v);
+    }
+    return sum;
+}
+
+void forwardDCT(Block &Yblock, Block &Ublock, Block &Vblock){
+    double constant = 1.00/4.00;
+
+    for(int i=0; i<8; i++){
+        for(int j=0; j<8; j++){
+            Yblock.set(i, j, constant*alpha(i)*alpha(j)*outerSum(Yblock, i, j));
+            Ublock.set(i, j, constant*alpha(i)*alpha(j)*outerSum(Ublock, i, j));
+            Vblock.set(i, j, constant*alpha(i)*alpha(j)*outerSum(Vblock, i, j));
+        }
+    }
+}
+
+void quantization(Block &Yblock, Block &Ublock, Block &Vblock){
+    double Q[8][8] = {
+            {6, 4, 4, 6, 10, 16, 20, 24},
+            {5, 5, 6, 8, 10, 23, 24, 22},
+            {6, 5, 6, 10, 16, 23, 28, 22},
+            {6, 7, 9, 12, 20, 35, 32, 25},
+            {7, 9, 15, 22, 27, 44, 41, 31},
+            {10, 14, 22, 26, 32, 42, 45, 37},
+            {20, 26, 31, 35, 41, 48, 48, 40},
+            {29, 37, 38, 39, 45, 40, 41, 40}
+    };
+
+    for(int i=0; i<8; i++){
+        for(int j=0; j<8; j++){
+            double auxY = Yblock.get(i, j)/(Q[i][j]*1.00);
+            double auxU = Ublock.get(i, j)/(Q[i][j]*1.00);
+            double auxV = Vblock.get(i, j)/(Q[i][j]*1.00);
+            if(auxY>0){
+                Yblock.set(i, j, (int)floor(auxY));
+            }
+            else{
+                Yblock.set(i, j, (int)ceil(auxY));
+            }
+            if(auxU>0){
+                Ublock.set(i, j, (int)floor(auxU));
+            }
+            else{
+                Ublock.set(i, j, (int)ceil(auxU));
+            }
+            if(auxV>0){
+                Vblock.set(i, j, (int)floor(auxV));
+            }
+            else{
+                Vblock.set(i, j, (int)ceil(auxV));
+            }
+        }
+    }
+}
+
 void loadMatrices(vector<vector<float>> &Y, vector<vector<float>> &U, vector<vector<float>> &V){
     ifstream in("nt-P3.ppm");
     string line;
@@ -44,18 +141,12 @@ void loadMatrices(vector<vector<float>> &Y, vector<vector<float>> &U, vector<vec
     
     int h = 0;
     int w = 0;
-    bool isSpace = false;
-    for(char i:line){
-        if(i==' '){
-            isSpace = true;
-        }
-        else if(!isSpace){
-            w = w*10 + (i - '0');
-        }
-        else{
-            h = h*10 + (i - '0');
-        }
-    }
+    istringstream ss(line);
+    string word;
+    ss>>word;
+    w = stoi(word);
+    ss>>word;
+    h = stoi(word);
 
     getline(in, line);
     string p1, p2, p3;
@@ -102,7 +193,7 @@ vector<Block> divideMatrixBy8(vector<vector<float>> Matrix){
     return blocks;
 }
 
-Block comprime(Block b){
+Block compress(Block b){
     Block c{4};
     for(int i=0; i<b.getN(); i+=2){
         for(int j=0; j<b.getN(); j+=2){
@@ -115,6 +206,16 @@ Block comprime(Block b){
             }
             avg = sum/4;
             c.set(i/2, j/2, avg);
+        }
+    }
+    return c;
+}
+
+Block decompress(Block b){
+    Block c{8};
+    for(int i=0; i<8; i++){
+        for(int j=0; j<8; j++){
+            c.set(i,j,b.get(i/2, j/2));
         }
     }
     return c;
@@ -139,34 +240,40 @@ void prettyMatrixPrint(vector<vector<float>> Matrix){
     
 }
 
-void encoder(vector<vector<float>> Y,vector<vector<float>> U,vector<vector<float>> V,vector<Block> &YC,vector<Block> &UC,vector<Block> &VC){
-    YC=divideMatrixBy8(Y);
+void encoder(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<float>> V, vector<Block> &YBlocks, vector<Block> &UBlocks, vector<Block> &VBlocks){
+    YBlocks=divideMatrixBy8(Y);
     vector<Block> aux=divideMatrixBy8(U);
 
     for(Block b:aux){
-        UC.push_back(comprime(b));
+        UBlocks.push_back(compress(b));
     } 
 
     aux=divideMatrixBy8(V);
 
     for(Block b:aux){
-        VC.push_back(comprime(b));
+        VBlocks.push_back(compress(b));
+    }
+
+    for(int i=0; i<UBlocks.size(); i++){
+        UBlocks[i] = decompress(UBlocks[i]);
+        VBlocks[i] = decompress(VBlocks[i]);
+    }
+
+    for(int i=0; i<YBlocks.size(); i++){
+        substract128(YBlocks[i], UBlocks[i], VBlocks[i]);
+    }
+
+    for(int i=0; i<YBlocks.size(); i++){
+        forwardDCT(YBlocks[i], UBlocks[i], VBlocks[i]);
+    }
+
+    for(int i=0; i<YBlocks.size(); i++){
+        quantization(YBlocks[i], UBlocks[i], VBlocks[i]);
     }
 
 }
 
-
-Block decomprime(Block b){
-    Block c{8};
-    for(int i=0; i<8; i++){
-        for(int j=0; j<8; j++){
-            c.set(i,j,b.get(i/2,j/2));
-        }
-    }
-    return c;
-}
-
-vector<vector<float>> buildMatrixBy8(vector<Block> blocks,int width,int height){
+vector<vector<float>> undivideMatrixBy8(vector<Block> blocks, int width, int height){
     vector<vector<float>> rez;
     
     for(int i=0; i<height; i++){
@@ -195,7 +302,8 @@ vector<vector<float>> buildMatrixBy8(vector<Block> blocks,int width,int height){
 
 
 void writePPM(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<float>> V){
-    ofstream out("newton.ppm");
+    cout<<"Wrintng the PPM...."<<endl;
+    ofstream out("result.ppm");
 
     out<<"P3";
     out<<endl;
@@ -232,39 +340,54 @@ void writePPM(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<fl
 }
 
 
-void decoder(vector<Block> Y,vector<Block> U,vector<Block> V,int width,int height){
-    vector<Block> UD,VD;
+void decoder(vector<Block> Y, vector<Block> U, vector<Block> V, int width, int height){
+    vector<Block> UDecompressed, VDecompressed;
     for(Block b:U){
-        UD.push_back(decomprime(b));
+        UDecompressed.push_back(decompress(b));
     }
 
 
     for(Block b:V){
-        VD.push_back(decomprime(b));
+        VDecompressed.push_back(decompress(b));
     }
 
-    vector<vector<float>> YM, UM, VM;
+    vector<vector<float>> YNoBlocks, UNoBlocks, VNoBlocks;
 
-    YM=buildMatrixBy8(Y,width,height);
-    UM=buildMatrixBy8(UD,width,height);
-    VM=buildMatrixBy8(VD,width,height);
+    YNoBlocks=undivideMatrixBy8(Y,width,height);
+    UNoBlocks=undivideMatrixBy8(UDecompressed,width,height);
+    VNoBlocks=undivideMatrixBy8(VDecompressed,width,height);
 
-    writePPM(YM,UM,VM);
+    writePPM(YNoBlocks, UNoBlocks, VNoBlocks);
     
 }
 
 
 int main(){
     vector<vector<float>> Y, U, V;
-    vector<Block> YC,UC,VC;
+    vector<Block> YBlocks, UBlocks, VBlocks;
 
     loadMatrices(Y, U, V);
     
-    cout<<"Encode...."<<endl;
-    encoder(Y,U,V,YC,UC,VC);
-    cout<<"Decode...."<<endl;
-    decoder(YC,UC,VC,Y[0].size(),Y.size());
+    cout<<"Encoding...."<<endl;
+    encoder(Y, U, V, YBlocks, UBlocks, VBlocks);
 
+    for(int i=0; i<8; i-=-1){
+        for(int j=0; j<8; j-=-1){
+            cout<<Y[8+i][8+j]<<' ';
+        }
+        cout<<endl;
+    }
+
+    for(int i=0; i<8; i-=-1){
+        for(int j=0; j<8; j-=-1){
+            cout<<YBlocks[1].get(i,j)<<' ';
+        }
+        cout<<endl;
+    }
+    
+    //cout<<"Decoding...."<<endl;
+    //decoder(YBlocks ,UBlocks ,VBlocks ,Y[0].size(), Y.size());
+    //cout<<"Done :)"<<endl;
 
 
     return 0;
