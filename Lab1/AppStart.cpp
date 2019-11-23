@@ -118,22 +118,43 @@ double iOuterSum(Block block, int x, int y){
 void forwardDCT(Block &Yblock, Block &Ublock, Block &Vblock){
     double constant = 1.00/4.00;
 
+    Block Yaux(8), Uaux(8), Vaux(8);
+
     for(int u=0; u<8; u++){
         for(int v=0; v<8; v++){
-            Yblock.set(u, v, constant*alpha(u)*alpha(v)*outerSum(Yblock, u, v));
-            Ublock.set(u, v, constant*alpha(u)*alpha(v)*outerSum(Ublock, u, v));
-            Vblock.set(u, v, constant*alpha(u)*alpha(v)*outerSum(Vblock, u, v));
+            Yaux.set(u, v, constant*alpha(u)*alpha(v)*outerSum(Yblock, u, v));
+            Uaux.set(u, v, constant*alpha(u)*alpha(v)*outerSum(Ublock, u, v));
+            Vaux.set(u, v, constant*alpha(u)*alpha(v)*outerSum(Vblock, u, v));
+        }
+    }
+
+    for(int u=0; u<8; u++){
+        for(int v=0; v<8; v++){
+            Yblock.set(u, v, Yaux.get(u, v));
+            Ublock.set(u, v, Uaux.get(u, v));
+            Vblock.set(u, v, Vaux.get(u, v));
         }
     }
 }
 
 void inversedDCT(Block &Yblock, Block &Ublock, Block &Vblock){
     double constant=1.00/4.00;
+
+    Block Yaux(8), Uaux(8), Vaux(8);
+
     for(int x=0; x<8; x++){
         for(int y=0; y<8; y++){
-            Yblock.set(x, y, constant*iOuterSum(Yblock, x, y));
-            Ublock.set(x, y, constant*iOuterSum(Ublock, x, y));
-            Vblock.set(x, y, constant*iOuterSum(Vblock, x, y));
+            Yaux.set(x, y, constant*iOuterSum(Yblock, x, y));
+            Uaux.set(x, y, constant*iOuterSum(Ublock, x, y));
+            Vaux.set(x, y, constant*iOuterSum(Vblock, x, y));
+        }
+    }
+
+    for(int u=0; u<8; u++){
+        for(int v=0; v<8; v++){
+            Yblock.set(u, v, Yaux.get(u, v));
+            Ublock.set(u, v, Uaux.get(u, v));
+            Vblock.set(u, v, Vaux.get(u, v));
         }
     }
 }
@@ -161,26 +182,6 @@ void quantization(Block &Yblock, Block &Ublock, Block &Vblock){
             Ublock.set(i, j, (int)auxU);
             
             Vblock.set(i, j, (int)auxV);
-           /*
-            if(auxY>0){
-                Yblock.set(i, j, (int)floor(auxY));
-            }
-            else{
-                Yblock.set(i, j, (int)ceil(auxY));
-            }
-            if(auxU>0){
-                Ublock.set(i, j, (int)floor(auxU));
-            }
-            else{
-                Ublock.set(i, j, (int)ceil(auxU));
-            }
-            if(auxV>0){
-                Vblock.set(i, j, (int)floor(auxV));
-            }
-            else{
-                Vblock.set(i, j, (int)ceil(auxV));
-            }
-            */
         }
     }
 }
