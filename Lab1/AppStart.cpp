@@ -160,7 +160,7 @@ Block decomprime(Block b){
     Block c{8};
     for(int i=0; i<8; i++){
         for(int j=0; j<8; j++){
-            c.set(i,j,b.get(ceil(i/2),ceil(j/2)));
+            c.set(i,j,b.get(i/2,j/2));
         }
     }
     return c;
@@ -267,5 +267,5 @@ int main(){
 
 
 
-    return 1;
+    return 0;
 }
