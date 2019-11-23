@@ -4,8 +4,11 @@
 #include <vector>
 #include <string>
 #include <sstream>
+#include <cmath>
 
 using namespace std;
+
+#define PI 3.14159265358979323846
 
 class Block{
     private:
@@ -35,6 +38,99 @@ class Block{
             return this->n;
         }
 };
+
+void substract128(Block &Yblock, Block &Ublock, Block &Vblock){
+    for(int i=0; i<8; i++){
+        for(int j=0; j<8; j++){
+            Yblock.set(i, j, Yblock.get(i, j) - 128);
+            Ublock.set(i, j, Ublock.get(i, j) - 128);
+            Vblock.set(i, j, Vblock.get(i, j) - 128);
+        }
+    }
+}
+
+double alpha(int val){
+    if( val>0 ){
+        return 1;
+    }
+    else{
+        return 1/sqrt(2);
+    }
+}
+
+double product(double value, int x, int y, int u , int v){
+    double cosineU = cos((2*x+1)*u*PI)/16.00;
+    double cosineV = cos((2*y+1)*v*PI)/16.00;
+
+    return value*cosineU*cosineV;
+}
+
+double innerSum(Block block, int x, int u, int v){
+    double sum = 0.00;
+    for(int y=0; y<8; y++){
+        sum += product(block.get(x,y), x, y, u, v);
+    }
+    return sum;
+}
+
+double outerSum(Block block, int u, int v){
+    double sum = 0.00;
+    for(int x=0; x<8; x++){
+        sum += innerSum(block, x, u, v);
+    }
+    return sum;
+}
+
+void forwardDCT(Block &Yblock, Block &Ublock, Block &Vblock){
+    double constant = 1.00/4.00;
+
+    for(int i=0; i<8; i++){
+        for(int j=0; j<8; j++){
+            Yblock.set(i, j, constant*alpha(i)*alpha(j)*outerSum(Yblock, i, j));
+            Ublock.set(i, j, constant*alpha(i)*alpha(j)*outerSum(Ublock, i, j));
+            Vblock.set(i, j, constant*alpha(i)*alpha(j)*outerSum(Vblock, i, j));
+        }
+    }
+}
+
+void quantization(Block &Yblock, Block &Ublock, Block &Vblock){
+    double Q[8][8] = {
+            {6, 4, 4, 6, 10, 16, 20, 24},
+            {5, 5, 6, 8, 10, 23, 24, 22},
+            {6, 5, 6, 10, 16, 23, 28, 22},
+            {6, 7, 9, 12, 20, 35, 32, 25},
+            {7, 9, 15, 22, 27, 44, 41, 31},
+            {10, 14, 22, 26, 32, 42, 45, 37},
+            {20, 26, 31, 35, 41, 48, 48, 40},
+            {29, 37, 38, 39, 45, 40, 41, 40}
+    };
+
+    for(int i=0; i<8; i++){
+        for(int j=0; j<8; j++){
+            double auxY = Yblock.get(i, j)/(Q[i][j]*1.00);
+            double auxU = Ublock.get(i, j)/(Q[i][j]*1.00);
+            double auxV = Vblock.get(i, j)/(Q[i][j]*1.00);
+            if(auxY>0){
+                Yblock.set(i, j, (int)floor(auxY));
+            }
+            else{
+                Yblock.set(i, j, (int)ceil(auxY));
+            }
+            if(auxU>0){
+                Ublock.set(i, j, (int)floor(auxU));
+            }
+            else{
+                Ublock.set(i, j, (int)ceil(auxU));
+            }
+            if(auxV>0){
+                Vblock.set(i, j, (int)floor(auxV));
+            }
+            else{
+                Vblock.set(i, j, (int)ceil(auxV));
+            }
+        }
+    }
+}
 
 void loadMatrices(vector<vector<float>> &Y, vector<vector<float>> &U, vector<vector<float>> &V){
     ifstream in("nt-P3.ppm");
@@ -115,6 +211,16 @@ Block compress(Block b){
     return c;
 }
 
+Block decompress(Block b){
+    Block c{8};
+    for(int i=0; i<8; i++){
+        for(int j=0; j<8; j++){
+            c.set(i,j,b.get(i/2, j/2));
+        }
+    }
+    return c;
+}
+
 void prettyBlockPrint(Block b){
     for(int i=0; i<b.getN(); i++){
         for(int j=0; j<b.getN(); j++){
@@ -148,17 +254,23 @@ void encoder(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<flo
         VBlocks.push_back(compress(b));
     }
 
-}
-
-
-Block decompress(Block b){
-    Block c{8};
-    for(int i=0; i<8; i++){
-        for(int j=0; j<8; j++){
-            c.set(i,j,b.get(i/2, j/2));
-        }
+    for(int i=0; i<UBlocks.size(); i++){
+        UBlocks[i] = decompress(UBlocks[i]);
+        VBlocks[i] = decompress(VBlocks[i]);
     }
-    return c;
+
+    for(int i=0; i<YBlocks.size(); i++){
+        substract128(YBlocks[i], UBlocks[i], VBlocks[i]);
+    }
+
+    for(int i=0; i<YBlocks.size(); i++){
+        forwardDCT(YBlocks[i], UBlocks[i], VBlocks[i]);
+    }
+
+    for(int i=0; i<YBlocks.size(); i++){
+        quantization(YBlocks[i], UBlocks[i], VBlocks[i]);
+    }
+
 }
 
 vector<vector<float>> undivideMatrixBy8(vector<Block> blocks, int width, int height){
@@ -258,9 +370,25 @@ int main(){
     
     cout<<"Encoding...."<<endl;
     encoder(Y, U, V, YBlocks, UBlocks, VBlocks);
-    cout<<"Decoding...."<<endl;
-    decoder(YBlocks ,UBlocks ,VBlocks ,Y[0].size(), Y.size());
-    cout<<"Done :)"<<endl;
+
+    for(int i=0; i<8; i-=-1){
+        for(int j=0; j<8; j-=-1){
+            cout<<Y[8+i][8+j]<<' ';
+        }
+        cout<<endl;
+    }
+
+    for(int i=0; i<8; i-=-1){
+        for(int j=0; j<8; j-=-1){
+            cout<<YBlocks[1].get(i,j)<<' ';
+        }
+        cout<<endl;
+    }
+    
+    //cout<<"Decoding...."<<endl;
+    //decoder(YBlocks ,UBlocks ,VBlocks ,Y[0].size(), Y.size());
+    //cout<<"Done :)"<<endl;
+
 
     return 0;
 }
