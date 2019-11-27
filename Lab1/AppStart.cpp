@@ -8,8 +8,6 @@
 
 using namespace std;
 
-#define PI 3.14159265358979323846
-
 class Block{
     private:
         vector<vector<float>> data;
@@ -68,63 +66,28 @@ double alpha(int val){
     }
 }
 
-
-double product(double value, int x, int y, int u , int v){
-    double cosineU = cos(((2.00*x+1)*u*PI)/16.00);
-    double cosineV = cos(((2.00*y+1)*v*PI)/16.00);
-
-    return value*cosineU*cosineV;
-}
-
-double iProduct(double value, int x, int y, int u , int v){
-    double cosineU = cos(((2.00*x+1)*u*PI)/16.00);
-    double cosineV = cos(((2.00*y+1)*v*PI)/16.00);
-
-    return value*cosineU*cosineV*alpha(u)*alpha(v);
-}
-
-double innerSum(Block block, int x, int u, int v){
-    double sum = 0.00;
-    for(int y=0; y<8; y++){
-        sum += product(block.get(x,y), x, y, u, v);
-    }
-    return sum;
-}
-
-double iInnerSum(Block block, int x, int y, int u){
-    double sum = 0.00;
-    for(int v=0; v<8; v++){
-        sum += iProduct(block.get(u,v), x, y, u, v);
-    }
-    return sum;
-}
-
-double outerSum(Block block, int u, int v){
-    double sum = 0.00;
-    for(int x=0; x<8; x++){
-        sum += innerSum(block, x, u, v);
-    }
-    return sum;
-}
-
-double iOuterSum(Block block, int x, int y){
-    double sum = 0.00;
-    for(int u=0; u<8; u++){
-        sum += iInnerSum(block, x, y, u);
-    }
-    return sum;
-}
-
-void forwardDCT(Block &Yblock, Block &Ublock, Block &Vblock){
+void fDCT(Block &Yblock, Block &Ublock, Block &Vblock){
     double constant = 1.00/4.00;
 
     Block Yaux(8), Uaux(8), Vaux(8);
 
     for(int u=0; u<8; u++){
         for(int v=0; v<8; v++){
-            Yaux.set(u, v, constant*alpha(u)*alpha(v)*outerSum(Yblock, u, v));
-            Uaux.set(u, v, constant*alpha(u)*alpha(v)*outerSum(Ublock, u, v));
-            Vaux.set(u, v, constant*alpha(u)*alpha(v)*outerSum(Vblock, u, v));
+            double sumY = 0.00;
+            double sumU = 0.00;
+            double sumV = 0.00;
+            for(int x=0; x<8; x++){
+                for(int y=0; y<8; y++){
+                    double cosineU = cos(((2.00*x+1)*u*3.1415)/16.00);
+                    double cosineV = cos(((2.00*y+1)*v*3.1415)/16.00);
+                    sumY += Yblock.get(x, y)*cosineU*cosineV;
+                    sumU += Ublock.get(x, y)*cosineU*cosineV;
+                    sumV += Vblock.get(x, y)*cosineU*cosineV;
+                }
+            }
+            Yaux.set(u, v, constant*alpha(u)*alpha(v)*sumY);
+            Uaux.set(u, v, constant*alpha(u)*alpha(v)*sumU);
+            Vaux.set(u, v, constant*alpha(u)*alpha(v)*sumV);
         }
     }
 
@@ -137,16 +100,28 @@ void forwardDCT(Block &Yblock, Block &Ublock, Block &Vblock){
     }
 }
 
-void inversedDCT(Block &Yblock, Block &Ublock, Block &Vblock){
+void iDCT(Block &Yblock, Block &Ublock, Block &Vblock){
     double constant=1.00/4.00;
 
     Block Yaux(8), Uaux(8), Vaux(8);
 
     for(int x=0; x<8; x++){
         for(int y=0; y<8; y++){
-            Yaux.set(x, y, constant*iOuterSum(Yblock, x, y));
-            Uaux.set(x, y, constant*iOuterSum(Ublock, x, y));
-            Vaux.set(x, y, constant*iOuterSum(Vblock, x, y));
+            double sumY = 0.00;
+            double sumU = 0.00;
+            double sumV = 0.00;
+            for(int u=0; u<8; u++){
+                for(int v=0; v<8; v++){
+                    double cosineU = cos(((2.00*x+1)*u*3.1415)/16.00);
+                    double cosineV = cos(((2.00*y+1)*v*3.1415)/16.00);
+                    sumY += Yblock.get(u, v)*cosineU*cosineV*alpha(u)*alpha(v);
+                    sumU += Ublock.get(u, v)*cosineU*cosineV*alpha(u)*alpha(v);
+                    sumV += Vblock.get(u, v)*cosineU*cosineV*alpha(u)*alpha(v);
+                }
+            }
+            Yaux.set(x, y, constant*sumY);
+            Uaux.set(x, y, constant*sumU);
+            Vaux.set(x, y, constant*sumV);
         }
     }
 
@@ -173,15 +148,9 @@ void quantization(Block &Yblock, Block &Ublock, Block &Vblock){
 
     for(int i=0; i<8; i++){
         for(int j=0; j<8; j++){
-            double auxY = Yblock.get(i, j)/Q[i][j];
-            double auxU = Ublock.get(i, j)/Q[i][j];
-            double auxV = Vblock.get(i, j)/Q[i][j];
-
-            Yblock.set(i, j, (int)auxY);
-        
-            Ublock.set(i, j, (int)auxU);
-            
-            Vblock.set(i, j, (int)auxV);
+            Yblock.set(i, j, (int)Yblock.get(i, j)/Q[i][j]);
+            Ublock.set(i, j, (int)Ublock.get(i, j)/Q[i][j]);
+            Vblock.set(i, j, (int)Vblock.get(i, j)/Q[i][j]);
         }
     }
 }
@@ -200,16 +169,9 @@ void dequantization(Block &Yblock, Block &Ublock, Block &Vblock){
 
     for(int i=0; i<8; i++){
         for(int j=0; j<8; j++){
-            double auxY = Yblock.get(i, j)*Q[i][j];
-            double auxU = Ublock.get(i, j)*Q[i][j];
-            double auxV = Vblock.get(i, j)*Q[i][j];
-            
-            Yblock.set(i, j, (int)auxY);
-        
-            Ublock.set(i, j, (int)auxU);
-            
-            Vblock.set(i, j, (int)auxV);
-            
+            Yblock.set(i, j, (int)Yblock.get(i, j)*Q[i][j]);
+            Ublock.set(i, j, (int)Ublock.get(i, j)*Q[i][j]);
+            Vblock.set(i, j, (int)Vblock.get(i, j)*Q[i][j]);
         }
     }
 }
@@ -290,6 +252,7 @@ Block compress(Block b){
             c.set(i/2, j/2, avg);
         }
     }
+    
     return c;
 }
 
@@ -303,26 +266,8 @@ Block decompress(Block b){
     return c;
 }
 
-void prettyBlockPrint(Block b){
-    for(int i=0; i<b.getN(); i++){
-        for(int j=0; j<b.getN(); j++){
-            cout<<b.get(i, j)<<' ';
-        }
-        cout<<endl;
-    }
-}
-
-void prettyMatrixPrint(vector<vector<float>> Matrix){
-    for(int i=0; i<Matrix.size(); i++){
-        for(int j=0; j<Matrix[i].size(); j++){
-            cout<<Matrix[i][j]<<' ';
-        }
-        cout<<endl;
-    }
-    
-}
-
 void encoder(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<float>> V, vector<Block> &YBlocks, vector<Block> &UBlocks, vector<Block> &VBlocks){
+    cout<<"\t - encoder lab1 running"<<endl;
     YBlocks=divideMatrixBy8(Y);
     vector<Block> aux=divideMatrixBy8(U);
 
@@ -336,6 +281,7 @@ void encoder(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<flo
         VBlocks.push_back(compress(b));
     }
 
+    cout<<"\t - encoder lab2 running"<<endl;
     for(int i=0; i<UBlocks.size(); i++){
         UBlocks[i] = decompress(UBlocks[i]);
         VBlocks[i] = decompress(VBlocks[i]);
@@ -344,15 +290,12 @@ void encoder(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<flo
     for(int i=0; i<YBlocks.size(); i++){
         substract128(YBlocks[i], UBlocks[i], VBlocks[i]);
     }
-
     for(int i=0; i<YBlocks.size(); i++){
-        forwardDCT(YBlocks[i], UBlocks[i], VBlocks[i]);
+        fDCT(YBlocks[i], UBlocks[i], VBlocks[i]);
     }
-
     for(int i=0; i<YBlocks.size(); i++){
         quantization(YBlocks[i], UBlocks[i], VBlocks[i]);
     }
-
 }
 
 vector<vector<float>> undivideMatrixBy8(vector<Block> blocks, int width, int height){
@@ -364,7 +307,6 @@ vector<vector<float>> undivideMatrixBy8(vector<Block> blocks, int width, int hei
             aux.push_back(-1);
         rez.push_back(aux);
     }
-
 
     int nrBlock=0;
     for(int i=0; i<height; i+=8){
@@ -379,9 +321,7 @@ vector<vector<float>> undivideMatrixBy8(vector<Block> blocks, int width, int hei
     }
 
     return rez;
-
 }
-
 
 void writePPM(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<float>> V){
     cout<<"Wrintng the PPM...."<<endl;
@@ -415,21 +355,18 @@ void writePPM(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<fl
             if (B < 0) B = 0.0;
 
             out<<(int)R<<endl<<(int)G<<endl<<(int)B<<endl;
-
         }
     }
-
 }
 
-
 void decoder(vector<Block> Y, vector<Block> U, vector<Block> V, int width, int height){
-    
+    cout<<"\t - decoder lab2 running"<<endl;
     for(int i=0; i<Y.size(); i++){
         dequantization(Y[i],U[i],V[i]);
     }
 
     for(int i=0; i<Y.size(); i++){
-        inversedDCT(Y[i],U[i],V[i]);
+        iDCT(Y[i],U[i],V[i]);
     }
 
     for(int i=0; i<Y.size(); i++){
@@ -440,7 +377,7 @@ void decoder(vector<Block> Y, vector<Block> U, vector<Block> V, int width, int h
         U[i]=compress(U[i]);
         V[i]=compress(V[i]);
     }
-    
+    cout<<"\t - decoder lab1 running"<<endl;
     vector<Block> UDecompressed, VDecompressed;
     for(Block b:U){
         UDecompressed.push_back(decompress(b));
@@ -458,14 +395,13 @@ void decoder(vector<Block> Y, vector<Block> U, vector<Block> V, int width, int h
     VNoBlocks=undivideMatrixBy8(VDecompressed,width,height);
 
     writePPM(YNoBlocks, UNoBlocks, VNoBlocks);
-    
 }
-
 
 int main(){
     vector<vector<float>> Y, U, V;
     vector<Block> YBlocks, UBlocks, VBlocks;
 
+    cout<<"Loading the file...."<<endl;
     loadMatrices(Y, U, V);
     
     cout<<"Encoding...."<<endl;
@@ -473,7 +409,6 @@ int main(){
     cout<<"Decoding...."<<endl;
     decoder(YBlocks ,UBlocks ,VBlocks ,Y[0].size(), Y.size());
     cout<<"Done :)"<<endl;
-
 
     return 0;
 }
