@@ -37,6 +37,186 @@ class Block{
         }
 };
 
+class MyByte{
+    private:
+        int a, b, c;
+    public:
+        MyByte(int a, int b, int c){
+            this->a = a;
+            this->b = b;
+            this->c = c;
+        }
+
+        int getA() { return this->a; }
+        int getB() { return this->b; }
+        int getC() { return this->c; }
+};
+
+int computeSizeOfAmplitude(int amplitude){
+    if(amplitude){
+        if(amplitude == -1 || amplitude == 1){
+            return 1;
+        }
+        else if(amplitude == -3 || amplitude == -2 || amplitude == 2 || amplitude == 3){
+            return 2;
+        }
+        else if((amplitude >= -7 && amplitude <= -4) || (amplitude >= 4 && amplitude <= 7)){
+            return 3;
+        }
+        else if((amplitude >= -15 && amplitude <= -8) || (amplitude >= 8 && amplitude <= 15)){
+            return 4;
+        }
+        else if((amplitude >= -31 && amplitude <= -16) || (amplitude >= 16 && amplitude <= 31)){
+            return 5;
+        }
+        else if((amplitude >= -63 && amplitude <= -32) || (amplitude >= 32 && amplitude <= 63)){
+            return 6;
+        }
+        else if((amplitude >= -127 && amplitude <= -64) || (amplitude >= 64 && amplitude <= 127)){
+            return 7;
+        }
+        else if((amplitude >= -255 && amplitude <= -128) || (amplitude >= 128 && amplitude <= 255)){
+            return 8;
+        }
+        else if((amplitude >= -511 && amplitude <= -256) || (amplitude >= 256 && amplitude <= 511)){
+            return 9;
+        }
+        else if((amplitude >= -1023 && amplitude <= -512) || (amplitude >= 512 && amplitude <= 1023)){
+            return 10;
+        }
+        return 0;
+    }
+    else return 0;
+}
+
+vector<int> parcurgereMatrice(Block matrix) {
+        vector<int> lista;
+        lista.resize(64);
+        int k = 0;
+        int column = 0;
+        int row = 0;
+        lista[k] = matrix.get(row, column);
+        do {
+            k++;
+            column++;
+            lista[k] = matrix.get(row, column);
+            do {
+                k++;
+                column--;
+                row++;
+                lista[k] = matrix.get(row, column);
+            } while (column != 0);
+
+            if (row == 7 )
+                break;
+            row++;
+            k++;
+            lista[k] = matrix.get(row, column);
+            do {
+                row--;
+                column++;
+                k++;
+                lista[k] = matrix.get(row, column);
+            } while (row != 0);
+        } while (true);
+
+        do {
+
+            k++;
+            column++;
+            lista[k] = matrix.get(row, column);
+            if (column == 7)
+                break;
+            do {
+                k++;
+                column++;
+                row--;
+                lista[k] = matrix.get(row, column);
+            } while (column != 7);
+            row++;
+            k++;
+            lista[k] = matrix.get(row, column);
+            do {
+                row++;
+                column--;
+                k++;
+                lista[k] = matrix.get(row, column);
+            } while (row != 7);
+        } while (true);
+
+        return lista;
+    }
+
+vector<vector<MyByte>> toBytes(vector<Block> Yblocks, vector<Block> Ublocks, vector<Block> Vblocks){
+    vector<vector<MyByte>> res;
+    for(int i=0; i<Yblocks.size(); i++){
+        vector<int> ylst = parcurgereMatrice(Yblocks[i]);
+        vector<int> ulst = parcurgereMatrice(Ublocks[i]);
+        vector<int> vlst = parcurgereMatrice(Vblocks[i]);
+        vector<MyByte> ybyte;
+        vector<MyByte> ubyte;
+        vector<MyByte> vbyte;
+        int zeroCntY = 0;
+        int zeroCntU = 0;
+        int zeroCntV = 0;
+        for(int j=0; j<ylst.size(); j++){
+            if(j==0){
+                MyByte bt = MyByte(-1, computeSizeOfAmplitude(ylst[j]), ylst[j]);
+                ybyte.push_back(bt);
+            }
+            else{
+                if(ylst[j]==0){
+                    zeroCntY++;
+                }
+                else{
+                    MyByte bt = MyByte(zeroCntY, computeSizeOfAmplitude(ylst[j]), ylst[j]);
+                    zeroCntY = 0;
+                    ybyte.push_back(bt);
+                }
+            }
+        }
+        ybyte.push_back(MyByte(0, 0, -1));
+        for(int j=0; j<ulst.size(); j++){
+            if(j==0){
+                MyByte bt = MyByte(-1, computeSizeOfAmplitude(ulst[j]), ulst[j]);
+                ubyte.push_back(bt);
+            }
+            else{
+                if(ulst[j]==0){
+                    zeroCntU++;
+                }
+                else{
+                    MyByte bt = MyByte(zeroCntU, computeSizeOfAmplitude(ulst[j]), ulst[j]);
+                    zeroCntU = 0;
+                    ubyte.push_back(bt);
+                }
+            }
+        }
+        ubyte.push_back(MyByte(0, 0, -1));
+        for(int j=0; j<vlst.size(); j++){
+            if(j==0){
+                MyByte bt = MyByte(-1, computeSizeOfAmplitude(vlst[j]), vlst[j]);
+                vbyte.push_back(bt);
+            }
+            else{
+                if(vlst[j]==0){
+                    zeroCntV++;
+                }
+                else{
+                    MyByte bt = MyByte(zeroCntV, computeSizeOfAmplitude(vlst[j]), vlst[j]);
+                    zeroCntV = 0;
+                    vbyte.push_back(bt);
+                }
+            }
+        }
+        vbyte.push_back(MyByte(0, 0, -1));
+        res.push_back(ybyte);
+        res.push_back(ubyte);
+        res.push_back(vbyte);
+    }
+    return res;
+}
+
 void substract128(Block &Yblock, Block &Ublock, Block &Vblock){
     for(int i=0; i<8; i++){
         for(int j=0; j<8; j++){
@@ -398,7 +578,7 @@ void decoder(vector<Block> Y, vector<Block> U, vector<Block> V, int width, int h
 }
 
 int main(){
-    vector<vector<float>> Y, U, V;
+    /*vector<vector<float>> Y, U, V;
     vector<Block> YBlocks, UBlocks, VBlocks;
 
     cout<<"Loading the file...."<<endl;
@@ -406,9 +586,37 @@ int main(){
     
     cout<<"Encoding...."<<endl;
     encoder(Y, U, V, YBlocks, UBlocks, VBlocks);
+    //vector<vector<MyByte>> res = toBytes(YBlocks, UBlocks, VBlocks);
+    //for(int i=0; i<res[0].size(); i++){
+    //    cout<< res[0][i].getA() << ' ' << res[0][i].getB() << ' ' << res[0][i].getC() << endl;
+    //}
     cout<<"Decoding...."<<endl;
     decoder(YBlocks ,UBlocks ,VBlocks ,Y[0].size(), Y.size());
-    cout<<"Done :)"<<endl;
+    cout<<"Done :)"<<endl;*/
+
+    /*Block test{8};
+    int Q[8][8] = {
+            {150, 80, 20, 4, 1, 0, 0, 0},
+            {92, 75, 18, 3, 1, 0, 0, 0},
+            {26, 19, 13, 2, 1, 0, 0, 0},
+            {3, 2, 2, 1, 0, 0, 0, 0},
+            {1, 0, 0, 0, 0, 0, 0, 0},
+            {0, 0, 0, 0, 0, 0, 0, 0},
+            {0, 0, 0, 0, 0, 0, 0, 0},
+            {0, 0, 0, 0, 0, 0, 0, 0}
+    };
+    for(int i=0; i<8;i++){
+        for(int j=0; j<8; j++){
+            test.set(i, j, Q[i][j]);
+        }
+    }
+    
+    vector<int> lst = parcurgereMatrice(test);
+    for(int i=0; i<lst.size(); i++){
+        cout<<lst[i]<<' '; 
+    }*/
+
+
 
     return 0;
 }
