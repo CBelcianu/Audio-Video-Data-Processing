@@ -384,8 +384,7 @@ vector<vector<float>> undivideMatrixBy8(vector<Block> blocks, int width, int hei
 
 
 void writePPM(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<float>> V){
-    cout<<"Wrintng the PPM...."<<endl;
-    ofstream out("result.ppm");
+    ofstream out("newton.ppm");
 
     out<<"P3";
     out<<endl;
@@ -468,11 +467,10 @@ int main(){
 
     loadMatrices(Y, U, V);
     
-    cout<<"Encoding...."<<endl;
+    cout<<"Encodare"<<endl;
     encoder(Y, U, V, YBlocks, UBlocks, VBlocks);
-    cout<<"Decoding...."<<endl;
+    cout<<"Decodare"<<endl;
     decoder(YBlocks ,UBlocks ,VBlocks ,Y[0].size(), Y.size());
-    cout<<"Done :)"<<endl;
 
 
     return 0;
