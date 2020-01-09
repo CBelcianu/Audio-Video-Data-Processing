@@ -89,70 +89,28 @@ int computeSizeOfAmplitude(int amplitude){
     else return 0;
 }
 
-vector<int> parcurgereMatrice(Block matrix) {
+vector<int> doZigZag(Block matrix) {
+        int pos[64][2] = {{0, 0}, {0, 1}, {1, 0}, {2, 0}, {1, 1}, {0, 2}, {0, 3}, {1, 2}, {2, 1}, {3, 0}, {4, 0}, {3, 1},
+                    {2, 2}, {1, 3}, {0, 4}, {0, 5}, {1, 4}, {2, 3}, {3, 2}, {4, 1}, {5, 0}, {6, 0}, {5, 1}, {4, 2},
+                    {3, 3}, {2, 4}, {1, 5}, {0, 6}, {0, 7}, {1, 6}, {2, 5}, {3, 4}, {4, 3}, {5, 2}, {6, 1}, {7, 0},
+                    {7, 1}, {6, 2}, {5, 3}, {4, 4}, {3, 5}, {2, 6}, {1, 7}, {2, 7}, {3, 6}, {4, 5}, {5, 4}, {6, 3},
+                    {7, 2}, {7, 3}, {6, 4}, {5, 5}, {4, 6}, {3, 7}, {4, 7}, {5, 6}, {6, 5}, {7, 4}, {7, 5}, {6, 6},
+                    {5, 7}, {6, 7}, {7, 6}, {7, 7}};
         vector<int> lista;
         lista.resize(64);
-        int k = 0;
-        int column = 0;
-        int row = 0;
-        lista[k] = matrix.get(row, column);
-        do {
-            k++;
-            column++;
-            lista[k] = matrix.get(row, column);
-            do {
-                k++;
-                column--;
-                row++;
-                lista[k] = matrix.get(row, column);
-            } while (column != 0);
-
-            if (row == 7 )
-                break;
-            row++;
-            k++;
-            lista[k] = matrix.get(row, column);
-            do {
-                row--;
-                column++;
-                k++;
-                lista[k] = matrix.get(row, column);
-            } while (row != 0);
-        } while (true);
-
-        do {
-
-            k++;
-            column++;
-            lista[k] = matrix.get(row, column);
-            if (column == 7)
-                break;
-            do {
-                k++;
-                column++;
-                row--;
-                lista[k] = matrix.get(row, column);
-            } while (column != 7);
-            row++;
-            k++;
-            lista[k] = matrix.get(row, column);
-            do {
-                row++;
-                column--;
-                k++;
-                lista[k] = matrix.get(row, column);
-            } while (row != 7);
-        } while (true);
-
+        for (int i=0; i<matrix.getN()*matrix.getN(); i++){
+            lista[i] = matrix.get(pos[i][0], pos[i][1]);
+        }
+        
         return lista;
     }
 
 vector<vector<MyByte>> toBytes(vector<Block> Yblocks, vector<Block> Ublocks, vector<Block> Vblocks){
     vector<vector<MyByte>> res;
     for(int i=0; i<Yblocks.size(); i++){
-        vector<int> ylst = parcurgereMatrice(Yblocks[i]);
-        vector<int> ulst = parcurgereMatrice(Ublocks[i]);
-        vector<int> vlst = parcurgereMatrice(Vblocks[i]);
+        vector<int> ylst = doZigZag(Yblocks[i]);
+        vector<int> ulst = doZigZag(Ublocks[i]);
+        vector<int> vlst = doZigZag(Vblocks[i]);
         vector<MyByte> ybyte;
         vector<MyByte> ubyte;
         vector<MyByte> vbyte;
@@ -215,6 +173,73 @@ vector<vector<MyByte>> toBytes(vector<Block> Yblocks, vector<Block> Ublocks, vec
         res.push_back(vbyte);
     }
     return res;
+}
+
+Block undoZigZag(vector<int> input){
+    Block block{8};
+    int pos[64][2]={{0, 0}, {0, 1}, {1, 0}, {2, 0}, {1, 1}, {0, 2}, {0, 3}, {1, 2}, {2, 1}, {3, 0}, {4, 0}, {3, 1},
+                    {2, 2}, {1, 3}, {0, 4}, {0, 5}, {1, 4}, {2, 3}, {3, 2}, {4, 1}, {5, 0}, {6, 0}, {5, 1}, {4, 2},
+                    {3, 3}, {2, 4}, {1, 5}, {0, 6}, {0, 7}, {1, 6}, {2, 5}, {3, 4}, {4, 3}, {5, 2}, {6, 1}, {7, 0},
+                    {7, 1}, {6, 2}, {5, 3}, {4, 4}, {3, 5}, {2, 6}, {1, 7}, {2, 7}, {3, 6}, {4, 5}, {5, 4}, {6, 3},
+                    {7, 2}, {7, 3}, {6, 4}, {5, 5}, {4, 6}, {3, 7}, {4, 7}, {5, 6}, {6, 5}, {7, 4}, {7, 5}, {6, 6},
+                    {5, 7}, {6, 7}, {7, 6}, {7, 7}};
+    for(int i=0; i<input.size(); i++){
+        int x=pos[i][0];
+        int y=pos[i][1];
+        block.set(x,y,input[i]);
+    }
+    return block;
+}
+
+void fromBytes (vector<vector<MyByte>> input,vector<Block> &Yblocks, vector<Block> &Ublocks, vector<Block> &Vblocks){
+    Yblocks.clear();
+    Ublocks.clear();
+    Vblocks.clear();
+    for(int i=0; i<input.size(); i++){
+        //E Y
+        Block block{8};
+        vector<int> unzigzag;
+        int addition=0;
+        for( int j=0; j<input[i].size(); j++){
+            if( j==0 ){
+                unzigzag.push_back(input[i][j].getC());
+                addition++;
+            }
+            else
+            {
+                for( int k=0; k<input[i][j].getA(); k++){
+                    unzigzag.push_back(0);
+                    addition++;
+                }
+                if(input[i][j].getB()!=0){
+                    unzigzag.push_back(input[i][j].getC());
+                    addition++;
+                }
+            }
+
+        }
+
+        for(int j=addition; j<64; j++){
+            unzigzag.push_back(0);
+        }
+
+        if(i%3==0){
+            //E Y
+            Block b=undoZigZag(unzigzag);
+            Yblocks.push_back(b);
+        }
+        else if(i%3==1){
+            //E U
+            Block b=undoZigZag(unzigzag);
+            Ublocks.push_back(b);
+        }
+        else if(i%3==2){
+            //E V
+            Block b=undoZigZag(unzigzag);
+            Vblocks.push_back(b);
+        }
+
+    }
 }
 
 void substract128(Block &Yblock, Block &Ublock, Block &Vblock){
@@ -446,7 +471,7 @@ Block decompress(Block b){
     return c;
 }
 
-void encoder(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<float>> V, vector<Block> &YBlocks, vector<Block> &UBlocks, vector<Block> &VBlocks){
+void encoder(vector<vector<MyByte>> &bytes, vector<vector<float>> Y, vector<vector<float>> U, vector<vector<float>> V, vector<Block> &YBlocks, vector<Block> &UBlocks, vector<Block> &VBlocks){
     cout<<"\t - encoder lab1 running"<<endl;
     YBlocks=divideMatrixBy8(Y);
     vector<Block> aux=divideMatrixBy8(U);
@@ -476,6 +501,9 @@ void encoder(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<flo
     for(int i=0; i<YBlocks.size(); i++){
         quantization(YBlocks[i], UBlocks[i], VBlocks[i]);
     }
+
+    cout<<"\t - encoder lab3 running"<<endl;
+    bytes = toBytes(YBlocks, UBlocks, VBlocks);
 }
 
 vector<vector<float>> undivideMatrixBy8(vector<Block> blocks, int width, int height){
@@ -539,7 +567,9 @@ void writePPM(vector<vector<float>> Y, vector<vector<float>> U, vector<vector<fl
     }
 }
 
-void decoder(vector<Block> Y, vector<Block> U, vector<Block> V, int width, int height){
+void decoder(vector<vector<MyByte>> input, vector<Block> Y, vector<Block> U, vector<Block> V, int width, int height){
+    cout<<"\t - decoder lab3 running"<<endl;
+    fromBytes(input,Y,U,V);
     cout<<"\t - decoder lab2 running"<<endl;
     for(int i=0; i<Y.size(); i++){
         dequantization(Y[i],U[i],V[i]);
@@ -578,45 +608,18 @@ void decoder(vector<Block> Y, vector<Block> U, vector<Block> V, int width, int h
 }
 
 int main(){
-    /*vector<vector<float>> Y, U, V;
+    vector<vector<float>> Y, U, V;
     vector<Block> YBlocks, UBlocks, VBlocks;
+    vector<vector<MyByte>> bytes;
 
     cout<<"Loading the file...."<<endl;
     loadMatrices(Y, U, V);
     
     cout<<"Encoding...."<<endl;
-    encoder(Y, U, V, YBlocks, UBlocks, VBlocks);
-    //vector<vector<MyByte>> res = toBytes(YBlocks, UBlocks, VBlocks);
-    //for(int i=0; i<res[0].size(); i++){
-    //    cout<< res[0][i].getA() << ' ' << res[0][i].getB() << ' ' << res[0][i].getC() << endl;
-    //}
+    encoder(bytes, Y, U, V, YBlocks, UBlocks, VBlocks);
     cout<<"Decoding...."<<endl;
-    decoder(YBlocks ,UBlocks ,VBlocks ,Y[0].size(), Y.size());
-    cout<<"Done :)"<<endl;*/
-
-    /*Block test{8};
-    int Q[8][8] = {
-            {150, 80, 20, 4, 1, 0, 0, 0},
-            {92, 75, 18, 3, 1, 0, 0, 0},
-            {26, 19, 13, 2, 1, 0, 0, 0},
-            {3, 2, 2, 1, 0, 0, 0, 0},
-            {1, 0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0, 0},
-            {0, 0, 0, 0, 0, 0, 0, 0}
-    };
-    for(int i=0; i<8;i++){
-        for(int j=0; j<8; j++){
-            test.set(i, j, Q[i][j]);
-        }
-    }
-    
-    vector<int> lst = parcurgereMatrice(test);
-    for(int i=0; i<lst.size(); i++){
-        cout<<lst[i]<<' '; 
-    }*/
-
-
+    decoder(bytes, YBlocks ,UBlocks ,VBlocks ,Y[0].size(), Y.size());
+    cout<<"Done :)"<<endl;
 
     return 0;
 }
