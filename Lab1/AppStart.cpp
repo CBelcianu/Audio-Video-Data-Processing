@@ -196,7 +196,6 @@ void fromBytes (vector<vector<MyByte>> input,vector<Block> &Yblocks, vector<Bloc
     Ublocks.clear();
     Vblocks.clear();
     for(int i=0; i<input.size(); i++){
-        //E Y
         Block block{8};
         vector<int> unzigzag;
         int addition=0;
@@ -224,17 +223,14 @@ void fromBytes (vector<vector<MyByte>> input,vector<Block> &Yblocks, vector<Bloc
         }
 
         if(i%3==0){
-            //E Y
             Block b=undoZigZag(unzigzag);
             Yblocks.push_back(b);
         }
         else if(i%3==1){
-            //E U
             Block b=undoZigZag(unzigzag);
             Ublocks.push_back(b);
         }
         else if(i%3==2){
-            //E V
             Block b=undoZigZag(unzigzag);
             Vblocks.push_back(b);
         }
